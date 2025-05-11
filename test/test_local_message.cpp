@@ -111,33 +111,33 @@ void handleClient(int clientSocket, const string& clientIP) {
     close(clientSocket);
 }
 
-void runP2PServer() {
+void runP2PServer(int port) {
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
         perror("socket");
         exit(EXIT_FAILURE);
     }
-    
+
     sockaddr_in serverAddr;
     memset(&serverAddr, 0, sizeof(serverAddr));
     serverAddr.sin_family = AF_INET;
-    serverAddr.sin_port = htons(P2P_PORT);
+    serverAddr.sin_port = htons(port); // <- Теперь порт из аргумента
     serverAddr.sin_addr.s_addr = htonl(INADDR_ANY);
-    
+
     if (bind(sockfd, (sockaddr*)&serverAddr, sizeof(serverAddr)) < 0) {
         perror("bind");
         close(sockfd);
         exit(EXIT_FAILURE);
     }
-    
+
     if (listen(sockfd, 5) < 0) {
         perror("listen");
         close(sockfd);
         exit(EXIT_FAILURE);
     }
-    
-    cout << "P2P server started on " << myIP << ":" << P2P_PORT << endl;
-    
+
+    cout << "P2P server started on " << myIP << ":" << port << endl;
+
     while (true) {
         sockaddr_in clientAddr;
         socklen_t clientLen = sizeof(clientAddr);
@@ -146,11 +146,11 @@ void runP2PServer() {
             perror("accept");
             continue;
         }
-        
+
         string clientIP = inet_ntoa(clientAddr.sin_addr);
         thread(handleClient, clientSocket, clientIP).detach();
     }
-    
+
     close(sockfd);
 }
 
@@ -269,24 +269,27 @@ void userInterface() {
 }
 
 int main(int argc, char* argv[]) {
-    if (argc < 2) {
-        cerr << "Usage: " << argv[0] << " <interface>" << endl;
+    if (argc < 3) {
+        cerr << "Usage: " << argv[0] << " <interface> <port>" << endl;
         return EXIT_FAILURE;
     }
-    
+
     string interface(argv[1]);
+    int port = atoi(argv[2]);
+
     myIP = getInterfaceIP(interface);
     myMac = getMacAddress(interface);
-    
+
     if (myIP.empty() || myMac.empty()) {
         cerr << "Failed to get network information for interface " << interface << endl;
         return EXIT_FAILURE;
     }
-    
-    cout << "P2P Client started on " << myIP << " (MAC: " << myMac << ")" << endl;
-    
-    thread serverThread(runP2PServer);
+
+    cout << "P2P Client started on " << myIP << ":" << port << " (MAC: " << myMac << ")" << endl;
+
+    // Передаём порт в сервер
+    thread serverThread(runP2PServer, port);
     userInterface();
-    
+
     return 0;
 }
